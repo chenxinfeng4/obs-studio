@@ -281,7 +281,7 @@ struct DShowInput {
 	void OnReactivate();
 	void OnVideoData(const VideoConfig &config, unsigned char *data,
 			 size_t size, long long startTime, long long endTime,
-			 long rotation);
+			 long rotation, uint64_t * iframe);
 	void OnAudioData(const AudioConfig &config, unsigned char *data,
 			 size_t size, long long startTime, long long endTime);
 
@@ -530,7 +530,8 @@ void DShowInput::OnReactivate()
 
 void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 			     size_t size, long long startTime,
-			     long long endTime, long rotation)
+			     long long endTime, long rotation,
+			     uint64_t * iframe)
 {
 	if (autorotation && rotation != lastRotation) {
 		lastRotation = rotation;
@@ -550,10 +551,11 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 #endif
 
 	if (videoConfig.format == VideoFormat::MJPEG) {
-		OnEncodedVideoData(AV_CODEC_ID_MJPEG, data, size, startTime);
+		if ((*iframe)++ % 4 == 0){
+			OnEncodedVideoData(AV_CODEC_ID_MJPEG, data, size, startTime);
+		}
 		return;
 	}
-
 	const int cx = config.cx;
 	const int cy_abs = config.cy_abs;
 
@@ -965,11 +967,12 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 
 	deviceHasAudio = dev.audioAttached;
 	deviceHasSeparateAudioFilter = dev.separateAudioFilter;
-
+	uint64_t iframe = 0;
 	videoConfig.callback = std::bind(&DShowInput::OnVideoData, this,
 					 placeholders::_1, placeholders::_2,
 					 placeholders::_3, placeholders::_4,
-					 placeholders::_5, placeholders::_6);
+					 placeholders::_5, placeholders::_6,
+					 &iframe);
 	videoConfig.reactivateCallback =
 		std::bind(&DShowInput::OnReactivate, this);
 
